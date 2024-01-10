@@ -1,0 +1,113 @@
+﻿@page "/"
+@rendermode RenderMode.InteractiveServer
+@using System.Collections.ObjectModel;
+@using ITAMS_DAL.Models
+@using System.Text.Json
+@inject IDeviceData deviceData
+@inject NavigationManager navigationManager
+@inject IGridStateData gridStateData
+
+
+<TelerikLayout>
+    <PageTitle>Home</PageTitle>
+
+    <TelerikGrid Data="@deviceList" Pageable="true" Sortable="true" FilterMode="@GridFilterMode.FilterMenu"
+             Resizable="true" ShowColumnMenu="true" Reorderable="true" Groupable="true" PageSize="10" @ref="Grid">
+
+        <GridToolBarTemplate>
+            <GridSearchBox Width="300px;"/>
+            <GridCommandButton Command="ExcelExport" Icon="@SvgIcon.FileExcel">Export to Excel</GridCommandButton>
+            <TelerikTextBox Name="Report Name" @bind-Value="@ReportName"/>
+            <GridCommandButton OnClick="HandleSaveReportButtonClick">Save Report</GridCommandButton>
+            <TelerikDropDownList Data="@gridStateList" TextField="StateName" ValueField="Id" @bind-Value="@SelectedReportId" DefaultText="-select a report-" OnChange="HandleGridStateDropDownOnChange" Width="250px;">
+                <DropDownListSettings>
+                <DropDownListPopupSettings Height="auto"></DropDownListPopupSettings>
+                </DropDownListSettings>
+            </TelerikDropDownList>
+        </GridToolBarTemplate>
+        <GridColumns>
+            
+
+            <GridColumn Field="Id" Width="100px"/>
+            <GridColumn Field="DeviceName" Title="Device Name" Width="250px" />
+            <GridColumn Field="DeviceFunction" Width="250px" Title="Device Function" />
+            <GridColumn Field="TypeName" Width="150px" Title="Device Type" />
+            <GridColumn Field="Manufacturer" Width="200px" />
+            <GridColumn Field="Model" Width="250px" />
+            <GridColumn Field="Poc" Width="250px" Title="POC"/>
+            <GridColumn Field="LocationName" Width="150px" Title="Location"/>
+            <GridColumn Field="Floor" Width="150px" />
+            <GridColumn Field="Room" Width="150px" />
+            <GridColumn Field="NetworkName" Width="150px" Title="Network" />
+            <GridColumn Field="PackageName" Width="150px" Title="RMF Package" />
+            <GridColumn Field="CreatedDate" Width="150px" Title="Created Date" />
+            <GridColumn Field="CreatedBy" Width="150px" Title="Created By"/>
+            <GridColumn Field="ModifiedDate" Width="150px" Title="Modified Date" />
+            <GridColumn Field="ModifiedBy" Width="150px" Title="Modified By" />
+
+        </GridColumns>
+    </TelerikGrid>
+
+
+
+</TelerikLayout>
+
+@code
+{
+    private List<IDevicesWithLookupsModel> deviceList;
+    private List<GridStateModel> gridStateList;
+
+    public bool windowVisible = false;
+    private int deviceId;
+    public TelerikNotification Notification { get; set; }
+    private TelerikGrid<IDevicesWithLookupsModel> Grid;
+    private string serializedState;
+    private string ReportName { get; set; }
+    private int SelectedReportId { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        deviceList = await deviceData.GetDevicesWithLookups();
+        //devicesListObserved = new ObservableCollection<IDevicesWithLookupsModel>(deviceList);
+        gridStateList = await gridStateData.GetGridStates();
+    }
+
+    public async Task HandleSaveReportButtonClick()
+    {
+        var state = Grid.GetState();
+        serializedState = JsonSerializer.Serialize(state);
+
+        var gridState = new GridStateModel()
+            {
+                SerializedState = serializedState,
+                StateName = ReportName,
+                GridId = 1
+
+            };
+
+        await gridStateData.CreateGridState(gridState);
+        gridStateList = await gridStateData.GetGridStates();
+        ReportName = string.Empty;
+    }
+
+    public async Task HandleGridStateDropDownOnChange()
+    {
+        if (windowVisible)
+        {
+            windowVisible = false;
+        }
+        if (SelectedReportId > 0)
+        {
+            var gridState = await gridStateData.GetGridStateById(SelectedReportId);
+            var state = JsonSerializer.Deserialize<GridState<IDevicesWithLookupsModel>>(gridState.SerializedState);
+            
+            await Grid.SetStateAsync(state);
+        }
+        else
+        {
+            await Grid.SetStateAsync(null);
+        }
+
+    }
+
+}
